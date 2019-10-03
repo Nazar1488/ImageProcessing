@@ -19,6 +19,9 @@ namespace ImageProcessing
         public Form1()
         {
             InitializeComponent();
+            saveAsComboBox.DataSource = Enum.GetValues(typeof(Formats));
+            firstDiffComboBox.DataSource = Enum.GetValues(typeof(Formats));
+            secondDiffComboBox.DataSource = Enum.GetValues(typeof(Formats));
         }
 
         private void OpenToolStripMenuItem_Click(object sender, EventArgs e)
@@ -29,118 +32,139 @@ namespace ImageProcessing
                 image = Image.FromFile(openFileDialog.FileName);
                 imageSizeLabel.Text = $@"{file.Length / 1024} kb";
                 pictureBox.Image = image;
+                saveAsBmpBtn.Enabled = true;
+                findDiffBtn.Enabled = true;
             }
         }
 
-        private void SaveAsBmpBtn_Click(object sender, EventArgs e)
+        private void saveAsBmpBtn_Click(object sender, EventArgs e)
         {
-            saveFileDialog.Filter = @"bmp(*.bmp)|*.bmp";
+            switch (saveAsComboBox.SelectedItem)
+            {
+                case Formats.JPEG:
+                    SaveAs("jpeg(*.jpeg)|*.jpeg", "image/jpeg", EncoderValue.CompressionNone, Formats.JPEG);
+                    break;
+                case Formats.BMP:
+                    SaveAs("bmp(*.bmp)|*.bmp", "image/tiff", EncoderValue.CompressionRle, Formats.BMP);
+                    break;
+                case Formats.TIFF:
+                    SaveAs("tif(*.tif)|*.tif", "image/tiff", EncoderValue.CompressionLZW, Formats.TIFF);
+                    break;
+                default:
+                    return;
+            }
+        }
+
+        private void SaveAs(string filter, string encoder, EncoderValue encoderValue, Formats format)
+        {
+            saveFileDialog.Filter = filter;
             if (saveFileDialog.ShowDialog() == DialogResult.OK)
             {
                 var encoderParameters = new EncoderParameters(1)
                 {
                     Param = new[]
                     {
-                        new EncoderParameter(Encoder.Compression, (long) EncoderValue.CompressionRle)
+                        new EncoderParameter(Encoder.Compression, (long) encoderValue)
                     }
                 };
 
                 var stopwatch = new Stopwatch();
                 stopwatch.Start();
-                image.Save(saveFileDialog.FileName, GetEncoderInfo("image/bmp"), encoderParameters);
+                var stream = new FileStream(saveFileDialog.FileName, FileMode.Create);
                 stopwatch.Stop();
-                writingTime.Text = stopwatch.Elapsed.Milliseconds + @" ms";
+                writingTime.Text = stopwatch.Elapsed.TotalMilliseconds + @" ms";
 
                 stopwatch.Restart();
-                bmpImage = Image.FromFile(saveFileDialog.FileName);
+                image.Save(stream, GetEncoderInfo(encoder), encoderParameters);
                 stopwatch.Stop();
-                readingTime.Text = stopwatch.Elapsed.Milliseconds + @" ms";
+                encodingTime.Text = stopwatch.Elapsed.TotalMilliseconds + @" ms";
+
+                stream.Dispose();
 
                 stopwatch.Restart();
-                var bitmapEncodedImage = (Bitmap) image;
+                switch (format)
+                {
+                    case Formats.BMP:
+                        bmpImage = Image.FromFile(saveFileDialog.FileName);
+                        break;
+                    case Formats.JPEG:
+                        jpegImage = Image.FromFile(saveFileDialog.FileName);
+                        break;
+                    case Formats.TIFF:
+                        tiffImage = Image.FromFile(saveFileDialog.FileName);
+                        break;
+                    default:
+                        return;
+                }
+
                 stopwatch.Stop();
-                encodingTime.Text = stopwatch.Elapsed.Milliseconds + @" ms";
+                readingTime.Text = stopwatch.Elapsed.TotalMilliseconds + @" ms";
 
-                imageSizeAfterLabel.Text = new FileInfo(saveFileDialog.FileName).Length / 1024 + @" kb";
-
-                if (bmpImage != null && tiffImage != null) bmpDiffTiffBtn.Enabled = true;
-
-                if (bmpImage != null && jpegImage != null) bmpDiffJpegBtn.Enabled = true;
-            }
-        }
-
-        private void SaveAsTiffBtn_Click(object sender, EventArgs e)
-        {
-            saveFileDialog.Filter = @"tif(*.tif)|*.tif";
-            if (saveFileDialog.ShowDialog() == DialogResult.OK)
-            {
-                var encoderParameters = new EncoderParameters(1)
+                stopwatch.Restart();
+                image.Save("test.bmp", GetEncoderInfo("image/bmp"), new EncoderParameters(1)
                 {
                     Param = new[]
                     {
-                        new EncoderParameter(Encoder.Compression, (long) EncoderValue.CompressionLZW)
+                        new EncoderParameter(Encoder.Compression, (long) EncoderValue.CompressionNone)
                     }
-                };
+                });
 
-                var stopwatch = new Stopwatch();
-                stopwatch.Start();
-                image.Save(saveFileDialog.FileName, ImageFormat.Tiff);
                 stopwatch.Stop();
-                writingTime.Text = stopwatch.Elapsed.Milliseconds + @" ms";
-
-                stopwatch.Restart();
-                tiffImage = Image.FromFile(saveFileDialog.FileName);
-                stopwatch.Stop();
-                readingTime.Text = stopwatch.Elapsed.Milliseconds + @" ms";
-
-                stopwatch.Restart();
-                var bitmapEncodedImage = (Bitmap) image;
-                stopwatch.Stop();
-                encodingTime.Text = stopwatch.Elapsed.Milliseconds + @" ms";
+                decodingTime.Text = stopwatch.Elapsed.TotalMilliseconds + @" ms";
 
                 imageSizeAfterLabel.Text = new FileInfo(saveFileDialog.FileName).Length / 1024 + @" kb";
-
-                if (bmpImage != null && tiffImage != null) bmpDiffTiffBtn.Enabled = true;
-
-                if (jpegImage != null && tiffImage != null) tiffDiffJpegBtn.Enabled = true;
             }
         }
 
-        private void SaveAsJpegBtn_Click(object sender, EventArgs e)
+        private void findDiffBtn_Click(object sender, EventArgs e)
         {
-            saveFileDialog.Filter = @"jpeg(*.jpeg)|*.jpeg";
-            if (saveFileDialog.ShowDialog() == DialogResult.OK)
+            Image first;
+            Image second;
+
+            switch (firstDiffComboBox.SelectedItem)
             {
-                var encoderParameters = new EncoderParameters(1)
-                {
-                    Param = new[]
-                    {
-                        new EncoderParameter(Encoder.Compression, (long) EncoderValue.CompressionLZW)
-                    }
-                };
-
-                var stopwatch = new Stopwatch();
-                stopwatch.Start();
-                image.Save(saveFileDialog.FileName, ImageFormat.Jpeg);
-                stopwatch.Stop();
-                writingTime.Text = stopwatch.Elapsed.Milliseconds + @" ms";
-
-                stopwatch.Restart();
-                jpegImage = Image.FromFile(saveFileDialog.FileName);
-                stopwatch.Stop();
-                readingTime.Text = stopwatch.Elapsed.Milliseconds + @" ms";
-
-                stopwatch.Restart();
-                var bitmapEncodedImage = (Bitmap) image;
-                stopwatch.Stop();
-                encodingTime.Text = stopwatch.Elapsed.Milliseconds + @" ms";
-
-                imageSizeAfterLabel.Text = new FileInfo(saveFileDialog.FileName).Length / 1024 + @" kb";
-
-                if (jpegImage != null && bmpImage != null) bmpDiffJpegBtn.Enabled = true;
-
-                if (jpegImage != null && tiffImage != null) tiffDiffJpegBtn.Enabled = true;
+                case Formats.Original:
+                    first = image;
+                    break;
+                case Formats.JPEG:
+                    first = jpegImage;
+                    break;
+                case Formats.BMP:
+                    first = bmpImage;
+                    break;
+                case Formats.TIFF:
+                    first = tiffImage;
+                    break;
+                default:
+                    return;
             }
+
+            switch (secondDiffComboBox.SelectedItem)
+            {
+                case Formats.Original:
+                    second = image;
+                    break;
+                case Formats.JPEG:
+                    second = jpegImage;
+                    break;
+                case Formats.BMP:
+                    second = bmpImage;
+                    break;
+                case Formats.TIFF:
+                    second = tiffImage;
+                    break;
+                default:
+                    return;
+            }
+
+            if (first == null || second == null)
+            {
+                MessageBox.Show("Convert to specified format first", "Info", MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            ImagesDifferenceAsync(first, second);
         }
 
         private async void ImagesDifferenceAsync(Image firstImage, Image secondImage)
@@ -176,31 +200,16 @@ namespace ImageProcessing
                     diff.SetPixel(i, j, Color.FromArgb(byte.MaxValue, r, g, b));
                 }
             });
-            image = Image.FromHbitmap(diff.GetHbitmap());
+
             redColorLabel.Text = rgbColor.R.ToString();
             greenColorLabel.Text = rgbColor.G.ToString();
             blueColorLabel.Text = rgbColor.B.ToString();
-            pictureBox.Image = image;
+            pictureBox.Image = Image.FromHbitmap(diff.GetHbitmap());
         }
 
         private static ImageCodecInfo GetEncoderInfo(string mimeType)
         {
             return ImageCodecInfo.GetImageEncoders().FirstOrDefault(t => t.MimeType == mimeType);
-        }
-
-        private void BmpDiffTiffBtn_Click(object sender, EventArgs e)
-        {
-            ImagesDifferenceAsync(bmpImage, tiffImage);
-        }
-
-        private void BmpDiffJpegBtn_Click(object sender, EventArgs e)
-        {
-            ImagesDifferenceAsync(bmpImage, jpegImage);
-        }
-
-        private void TiffDiffJpegBtn_Click(object sender, EventArgs e)
-        {
-            ImagesDifferenceAsync(tiffImage, jpegImage);
         }
 
         private void ExitToolStripMenuItem_Click(object sender, EventArgs e)
